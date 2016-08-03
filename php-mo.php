@@ -1,24 +1,24 @@
 <?php
 /**
  * php.mo 0.1 by Joss Crowcroft (http://www.josscrowcroft.com)
- * 
+ *
  * Converts gettext translation '.po' files to binary '.mo' files in PHP.
- * 
- * Usage: 
+ *
+ * Usage:
  * <?php require('php-mo.php'); phpmo_convert( 'input.po', [ 'output.mo' ] ); ?>
- * 
+ *
  * NB:
  * - If no $output_file specified, output filename is same as $input_file (but .mo)
  * - Returns true/false for success/failure
  * - No warranty, but if it breaks, please let me know
- * 
+ *
  * More info:
  * https://github.com/josscrowcroft/php.mo
- * 
- * Based on php-msgfmt by Matthias Bauer (Copyright © 2007), a command-line PHP tool
+ *
+ * Based on php-msgfmt by Matthias Bauer (Copyright (C) 2007), a command-line PHP tool
  * for converting .po files to .mo.
  * (http://wordpress-soc-2007.googlecode.com/svn/trunk/moeffju/php-msgfmt/msgfmt.php)
- * 
+ *
  * License: GPL v3 http://www.opensource.org/licenses/gpl-3.0.html
  */
 
@@ -44,10 +44,15 @@ function phpmo_clean_helper($x) {
 			$x[$k] = phpmo_clean_helper($v);
 		}
 	} else {
+		$x = str_replace("\"\n\"", '', $x); // Remove string joints
+		$x = str_replace('\\"', '"', $x); // Unescape double quotes
+		$x = str_replace('\\\\', '\\', $x); // Unescape backslashes
+		$x = str_replace('\\n', "\n", $x); // Unescape new lines
+		$x = str_replace('$', '\\$', $x); // Escape $...
+		$x = preg_replace('/(%[0-9]+)\\\\\\$([sducoxXbgGeEfF])/', '\\1$\\2', $x); // ...except in placeholders
+
 		if ($x[0] == '"')
-			$x = substr($x, 1, -1);
-		$x = str_replace("\"\n\"", '', $x);
-		$x = str_replace('$', '\\$', $x);
+			$x = substr($x, 1, -1); // Remove double quotes at the beginning and at the end of the string
 	}
 	return $x;
 }
@@ -76,8 +81,8 @@ function phpmo_parse_po_file($in) {
 		if ($line === '')
 			continue;
 
-		list ($key, $data) = preg_split('/\s/', $line, 2);
-		
+		@list ($key, $data) = preg_split('/\s/', $line, 2);
+
 		switch ($key) {
 			case '#,' : // flag...
 				$fuzzy = in_array('fuzzy', preg_split('/,\s*/', $data));
@@ -134,7 +139,7 @@ function phpmo_parse_po_file($in) {
 		}
 	}
 	fclose($fh);
-	
+
 	// add final entry
 	if ($state == 'msgstr')
 		$hash[] = $temp;
@@ -150,7 +155,9 @@ function phpmo_parse_po_file($in) {
 				return FALSE;
 			}
 		}
-		$hash[$entry['msgid']] = $entry;
+
+		if (!empty($entry['msgid']) && implode('', $entry['msgstr']))
+			$hash[$entry['msgid'] . @$entry['msgctxt']] = $entry;
 	}
 
 	return $hash;
